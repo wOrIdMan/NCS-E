@@ -1,5 +1,5 @@
 function [recordedBestX,FeasibleObj1st,FeasibleFes1st] = NCS_E(MaxFes,evaluateFunc,funcNum,lb,ub,m,dim,input)
-%% 
+%% Initialization
 epsim = 1e-4;
 FeasibleX1st = nan(1,dim);
 FeasibleFes1st = nan;
@@ -76,8 +76,30 @@ while(Fes<MaxFes)
     [offspringObj, offspringG, offspringH] = evaluateFunc(offspringX,funcNum);
     offspringConV = calVio(m, offspringG, offspringH, epsim);
     [recordedBesty,recordedBestConV,bestX,Fes,FeasibleX1st,FeasibleObj1st,FeasibleFes1st] = record(offspringX,offspringObj,offspringConV,recordedBesty,recordedBestConV,bestX,Fes,FeasibleX1st,FeasibleObj1st,FeasibleFes1st);
-    
-    
+    % Repair infeasible individual
+    if mod(generation,dim)==0
+        for i = 1:m
+            if rand < 0.2
+                count=0;
+                while count<3&&offspringConV(i)~=0&&Fes<MaxFes-dim
+                    newx = gradientMutation(offspringX(i,:)',offspringG(i,:)',offspringH(i,:)',funcNum,evaluateFunc);
+                    newx = keep_range(newx',lb,ub);
+                    count=count+1;
+                    recordedBesty(Fes+dim) = recordedBesty(Fes);
+                    recordedBestConV(Fes+dim) = recordedBestConV(Fes);
+                    Fes = Fes + dim;
+                    [newf,newg,newh] = evaluateFunc(newx,funcNum);
+                    newConV = calVio(1,newg,newh,epsim);
+                    [recordedBesty,recordedBestConV,bestX,Fes,FeasibleX1st,FeasibleObj1st,FeasibleFes1st] = record(newx,newf,newConV,recordedBesty,recordedBestConV,bestX,Fes,FeasibleX1st,FeasibleObj1st,FeasibleFes1st);
+                    offspringX(i,:) = newx;
+                    offspringObj(i) = newf;
+                    offspringG(i,:) = newg;
+                    offspringH(i,:) = newh;
+                    offspringConV(i) = newConV;
+                end
+            end
+        end
+    end
     
     
     [archiveX, archiveObj, archiveG, archiveH, archiveLen] = updateArchive(archiveX, archiveObj, archiveG, archiveH, offspringX, offspringObj, offspringG, offspringH, archiveLen, archiveMaxLen);
@@ -93,7 +115,7 @@ while(Fes<MaxFes)
         end
     end
     
-    
+    % v-level penalty
     PenaltyF = max(0, max((vBestObj-archiveObj)./(archiveRelaxedConV-vBestRelaxedConV)));
     recordedPenalty(generation) = PenaltyF;
     populationRelaxedConV = RelaxConV(m, populationG, populationH, epsim, v);
@@ -165,7 +187,7 @@ while(Fes<MaxFes)
         successCount = zeros(m,1);
         recordedSigma(:,generation) = sigma(:,1);
 
-        
+        % update weights
         for i = 1:m
             voteW(i,:) = lr*newVoteW(i,:)/epoch + (1-lr)*voteW(i,:);
             recordSuccVote(i,:) = zeros(1,3);
@@ -182,80 +204,4 @@ end
 %%
 recordedBestX(end,:) = bestX;
 recordedBestX = recordedBestX';
-end
-
-
-function [popCorr,offsCorr] = Corr(pop,offs,sigma)
-
-[m,~] = size(pop);
-popCorr = zeros(m,1);
-offsCorr = zeros(m,1);
-for i = 1:m
-    popDist = zeros(1,m);
-    offsDist = zeros(1,m);
-    for j = [1:i-1,i+1:m]
-        popDist(j) = BD(pop(i,:),sigma(i,:),pop(j,:),sigma(j,:)); % Bhattacharyya distance
-        offsDist(j) = BD(offs(i,:),sigma(i,:),pop(j,:),sigma(j,:));
-    end
-    popDist(i) = [];
-    offsDist(i) = [];
-    popCorr(i) = min(popDist);
-    offsCorr(i) = min(offsDist);
-end
-end
-function dist = BD(x1,sigma1,x2,sigma2)
-% dist = sum((x1-x2).^2./(sigma1.^2+sigma2.^2+1e-9))/4+log((prod((sigma1.^2+sigma2.^2)./2)+1e-100)/(sqrt(prod(sigma1.^2)*prod(sigma2.^2))+1e-100))/2;
-dist = sum((x1-x2).^2./(sigma1.^2+sigma2.^2+1e-9))/4 + 0.5*sum(log((sigma1.^2+sigma2.^2)/2) - log(sigma1) - log(sigma2));
-end
-
-
-
-
-
-function [recordedBesty,recordedBestConV,bestx,Fes,FeasibleX1st,FeasibleObj1st,FeasibleFes1st] = record(offs,offsf,offsVio,recordedBesty,recordedBestConV,bestx,Fes,FeasibleX1st,FeasibleObj1st,FeasibleFes1st)
-m = length(offsf);
-for i = 1:m
-    if isnan(FeasibleFes1st)&&offsVio(i)==0
-        FeasibleFes1st = Fes;
-        FeasibleObj1st = offsf(i);
-        FeasibleX1st = offs(i,:);
-    end
-    if (offsf(i)<recordedBesty(Fes)&&offsVio(i)==recordedBestConV(Fes))||(offsVio(i)<recordedBestConV(Fes))
-        bestx = offs(i,:);
-        recordedBesty(Fes) = offsf(i);
-        recordedBestConV(Fes) = offsVio(i);
-    end
-    Fes = Fes + 1;
-    recordedBesty(Fes) = recordedBesty(Fes-1);
-    recordedBestConV(Fes) = recordedBestConV(Fes-1);
-end
-end
-
-function [archiveX, archiveObj, archiveG, archiveH, archiveLen] = updateArchive(archiveX, archiveObj, archiveG, archiveH, offspringX, offspringObj, offspringG, offspringH, archiveLen, archiveMaxLen)
-m = size(offspringX,1);
-for i = 1:m
-    if archiveLen<archiveMaxLen
-        archiveLen = archiveLen+1;
-        replaceedI = archiveLen;
-    else
-        replaceedI = randi(archiveMaxLen);
-    end
-    archiveX(replaceedI,:) = offspringX(i,:);
-    archiveObj(replaceedI) = offspringObj(i);
-    archiveG(replaceedI,:) = offspringG(i,:);
-    archiveH(replaceedI,:) = offspringH(i,:);
-end
-
-end
-function RelaxedConV = RelaxConV(m,g,h,epsim,v)
-RelaxedConV = zeros(m,1);
-g(g<v) = 0;
-if ~isempty(g)
-    RelaxedConV = RelaxedConV + sum(g,2);
-end
-h = abs(h);
-h(h<=epsim+v) = 0;
-if ~isempty(h)
-    RelaxedConV = RelaxedConV + sum(h,2);
-end
 end

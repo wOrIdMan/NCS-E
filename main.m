@@ -5,13 +5,13 @@ addpath benchmark/CEC2020/
 global initial_flag
 Date=date;
 Date(Date=='-') = '_';
-MaxRun = 100;
+MaxRun = 25;
 epsim=1e-4;
-% algorithms = {'NCS_FR','NCS_DPF','eNCS','vNCS','MOEAD_NCS'};
-algorithms = {'NCS_VMCH_Corr2'};
-for i = 1:length(algorithms)
-    addpath(sprintf('%s/',algorithms{i}));
-end
+% algorithms = {'NCS_FR', 'eNCS','vNCS','MOEAD_NCS'};
+algorithms = {'NCS_E'};
+% for i = 1:length(algorithms)
+%     addpath(sprintf('%s/',algorithms{i}));
+% end
 for algorithm = algorithms
     algo_name = string(algorithm);
     epoch = 10;
@@ -57,9 +57,9 @@ for algorithm = algorithms
         [besty,bestg,besth] = cec20_func(bestx(:,:,end),funcNum);
         Vio = calVio(MaxRun,bestg,besth,epsim);
         fprintf('%e ',besty);fprintf('\n');fprintf('%.6e ',Vio);fprintf('\n');fprintf('%f ',FeasibleObj1st);fprintf('\n');fprintf('%d ',FeasibleFes1st);fprintf('\n');
-        fprintf(f,'%e ',besty);fprintf(f,'\n');fprintf(f,'%.6e ',Vio);fprintf(f,'\n');fprintf(f,'%f ',FeasibleObj1st);fprintf(f,'\n');fprintf(f,'%d ',FeasibleFes1st);fprintf(f,'\n');
+%         fprintf(f,'%e ',besty);fprintf(f,'\n');fprintf(f,'%.6e ',Vio);fprintf(f,'\n');fprintf(f,'%f ',FeasibleObj1st);fprintf(f,'\n');fprintf(f,'%d ',FeasibleFes1st);fprintf(f,'\n');
     end
-    fclose(f);
+%     fclose(f);
 
         
 end
